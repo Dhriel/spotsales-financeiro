@@ -19,6 +19,7 @@ type Situacao = 'agendado' | 'enviado' | 'erro' | 'nao_automatico' | 'pendente_e
 type Filtro = Situacao | 'todos' | 'pendentes_hoje' | 'nao_enviados'
 
 interface MonitoramentoCobranca {
+  evento_id?: number
   lancamento_id: number
   data_lancamento: string | null
   vencimento: string | null
@@ -93,6 +94,7 @@ export default function Monitoramento() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [cliente, setCliente] = useState('')
   const [situacao, setSituacao] = useState<Filtro>('enviado')
   const [mes, setMes] = useState(() => dataLocal(new Date().toISOString()).slice(0, 7))
   const [dia, setDia] = useState('')
@@ -124,7 +126,29 @@ export default function Monitoramento() {
       if (batch.length < REMOTE_PAGE_SIZE) break
     }
 
-    setRows(result)
+    const events: { id: number; lancamento_id: number; data_envio: string; status_envio: string; canal_envio: string | null; origem: 'manual' | 'automatico' | null; observacao: string | null; tentativas: number | null; codigo_http: number | null; erro_detalhe: string | null }[] = []
+    for (let from = 0; ; from += REMOTE_PAGE_SIZE) {
+      const { data, error: eventError } = await supabase.from('envios_lancamentos')
+        .select('id,lancamento_id,data_envio,status_envio,canal_envio,origem,observacao,tentativas,codigo_http,erro_detalhe')
+        .order('data_envio', { ascending: false }).order('id', { ascending: false })
+        .range(from, from + REMOTE_PAGE_SIZE - 1)
+      if (eventError) {
+        setError(eventError.message)
+        setRows([])
+        setLoading(false)
+        return
+      }
+      const batch = data || []
+      events.push(...batch)
+      if (batch.length < REMOTE_PAGE_SIZE) break
+    }
+    const byId = new Map(result.map((row) => [row.lancamento_id, row]))
+    const history: MonitoramentoCobranca[] = events.flatMap((event) => {
+      const row = byId.get(event.lancamento_id)
+      if (!row) return []
+      return [{ ...row, evento_id: event.id, ultimo_envio_em: event.data_envio, ultimo_status_envio: event.status_envio, ultimo_canal_envio: event.canal_envio, ultimo_origem_envio: event.origem, ultima_observacao: event.observacao, ultimas_tentativas: event.tentativas, ultimo_codigo_http: event.codigo_http, ultimo_erro: event.erro_detalhe, situacao_monitoramento: event.status_envio === 'erro' ? 'erro' as const : row.situacao_monitoramento }]
+    })
+    setRows([...history, ...result.filter((row) => !row.ultimo_envio_em)])
     setLoading(false)
   }, [])
 
@@ -140,7 +164,7 @@ export default function Monitoramento() {
       const enviado = ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '')
       const aberto = row.status_pagamento !== 'pago' && row.status_pagamento !== 'cancelado'
       const naoEnviado = aberto && !enviado
-      const dataReferencia = enviado ? dataLocal(row.ultimo_envio_em) : (row.vencimento || '')
+      const dataReferencia = row.evento_id ? dataLocal(row.ultimo_envio_em) : (row.vencimento || '')
       if (!dataReferencia.startsWith(mes) || (dia && dataReferencia !== dia)) return false
       const matchesSituation = situacao === 'todos' ||
         (situacao === 'enviado' ? enviado :
@@ -152,18 +176,17 @@ export default function Monitoramento() {
         .join(' ')
         .toLocaleLowerCase('pt-BR')
 
-      return matchesSituation && (!term || haystack.includes(term))
+      return matchesSituation && (!cliente || row.cliente === cliente) && (!term || haystack.includes(term))
     })
-  }, [rows, search, situacao, mes, dia])
+  }, [rows, search, situacao, mes, dia, cliente])
 
   useEffect(() => {
     setPage(1)
-  }, [search, situacao, mes, dia])
+  }, [search, situacao, mes, dia, cliente])
 
   const totals = useMemo(() => {
     const period = rows.filter((row) => {
-      const enviado = ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '')
-      const data = enviado ? dataLocal(row.ultimo_envio_em) : (row.vencimento || '')
+      const data = row.evento_id ? dataLocal(row.ultimo_envio_em) : (row.vencimento || '')
       return data.startsWith(mes) && (!dia || data === dia)
     })
     return {
@@ -186,7 +209,7 @@ export default function Monitoramento() {
             <span className="text-xs font-bold uppercase tracking-widest">Operação financeira</span>
           </div>
           <h2 className="text-2xl font-bold text-brand-950">Monitoramento de cobranças</h2>
-          <p className="mt-1 text-sm text-gray-500">Acompanhe cada lançamento, o último evento de envio e qualquer falha registrada.</p>
+          <p className="mt-1 text-sm text-gray-500">Acompanhe o histórico de envios e as falhas registradas para cada cobrança.</p>
         </div>
         <button
           type="button"
@@ -210,8 +233,9 @@ export default function Monitoramento() {
         <div className="flex flex-wrap items-end gap-3 border-b border-brand-100/70 px-4 py-3">
           <label className="text-xs font-semibold text-gray-600">Mês <input type="month" value={mes} onChange={(event) => { setMes(event.target.value); setDia('') }} className="ml-2 rounded-lg border border-gray-200 px-2 py-1.5" /></label>
           <label className="text-xs font-semibold text-gray-600">Dia <input type="date" value={dia} onChange={(event) => { setDia(event.target.value); if (event.target.value) setMes(event.target.value.slice(0, 7)) }} className="ml-2 rounded-lg border border-gray-200 px-2 py-1.5" /></label>
+          <label className="text-xs font-semibold text-gray-600">Cliente <select value={cliente} onChange={(event) => setCliente(event.target.value)} className="ml-2 rounded-lg border border-gray-200 px-2 py-1.5"><option value="">Todos</option>{Array.from(new Set(rows.map((row) => row.cliente).filter((name): name is string => Boolean(name)))).sort((a, b) => a.localeCompare(b, 'pt-BR')).map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
           {dia ? <button type="button" onClick={() => setDia('')} className="text-xs text-brand-700">Limpar dia</button> : null}
-          <p className="text-xs text-gray-500">Enviados: data do último envio. Demais situações: vencimento.</p>
+          <p className="text-xs text-gray-500">Eventos: data do envio. Sem registro: vencimento.</p>
         </div>
         <div className="flex flex-col gap-3 border-b border-brand-100/70 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full lg:max-w-md">
@@ -280,7 +304,7 @@ export default function Monitoramento() {
                     const detail = row.ultimo_erro || row.ultima_observacao || (row.ultimo_status_envio ? `Status da API: ${row.ultimo_status_envio}` : 'Aguardando evento de envio')
 
                     return (
-                      <tr key={row.lancamento_id} className="align-top transition-colors hover:bg-brand-50/30">
+                      <tr key={row.evento_id ? `evento-${row.evento_id}` : `pendente-${row.lancamento_id}`} className="align-top transition-colors hover:bg-brand-50/30">
                         <td className="px-4 py-3.5">
                           <p className="font-medium text-gray-800">{row.cliente || 'Cliente não informado'}</p>
                           <p className="mt-0.5 text-xs text-gray-500">Pagamento: {row.status_pagamento || '—'}</p>
