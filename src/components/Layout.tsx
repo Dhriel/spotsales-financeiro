@@ -12,6 +12,7 @@ import {
   Users,
   UserPlus,
   FileText,
+  ShieldAlert,
   Pencil,
   Moon,
   Sun
@@ -34,6 +35,7 @@ const navItems = [
     ],
   },
   { to: '/envios', icon: Send, label: 'Envios' },
+  { to: '/monitoramento', icon: ShieldAlert, label: 'Monitoramento' },
 ]
 
 export default function Layout() {

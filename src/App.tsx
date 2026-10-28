@@ -8,6 +8,7 @@ import AsaasClientes from './pages/AsaasClientes'
 import AsaasCobranca from './pages/AsaasCobranca'
 import AsaasCobrancasEditar from './pages/AsaasCobrancasEditar'
 import EditarContatos from './pages/EditarContatos'
+import Monitoramento from './pages/Monitoramento'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/asaas-cobranca" element={<AsaasCobranca />} />
           <Route path="/asaas-cobrancas-editar" element={<AsaasCobrancasEditar />} />
           <Route path="/editar-contatos" element={<EditarContatos />} />
+          <Route path="/monitoramento" element={<Monitoramento />} />
         </Route>
       </Routes>
     </BrowserRouter>
