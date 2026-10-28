@@ -249,20 +249,19 @@ export default function Monitoramento() {
               <table className="w-full min-w-[1160px] text-left text-sm">
                 <thead className="bg-brand-50/70 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                   <tr>
-                    <th className="px-4 py-3">Lançamento</th>
                     <th className="px-4 py-3">Cliente</th>
                     <th className="px-4 py-3">Vencimento</th>
-                    <th className="px-4 py-3">Valor</th>
-                    <th className="px-4 py-3">Último evento</th>
+                    <th className="px-4 py-3">Último envio</th>
                     <th className="px-4 py-3">Canal / origem</th>
                     <th className="px-4 py-3">Situação</th>
                     <th className="px-4 py-3">Detalhe</th>
+                    <th className="px-4 py-3">Valor</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-100/60">
                   {visibleRows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-14 text-center text-gray-400">Nenhum lançamento encontrado com esses filtros.</td>
+                      <td colSpan={7} className="px-4 py-14 text-center text-gray-400">Nenhum lançamento encontrado com esses filtros.</td>
                     </tr>
                   ) : visibleRows.map((row) => {
                     const situation = row.ultimo_status_envio === 'erro' ? situacaoConfig.erro : ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '') ? situacaoConfig.enviado : getSituacao(row)
@@ -272,15 +271,10 @@ export default function Monitoramento() {
                     return (
                       <tr key={row.lancamento_id} className="align-top transition-colors hover:bg-brand-50/30">
                         <td className="px-4 py-3.5">
-                          <p className="font-semibold text-brand-950">#{row.lancamento_id} · {row.forma_pgt || 'Cobrança'}</p>
-                          <p className="mt-0.5 text-xs text-gray-500">Lançado em {formatDate(row.data_lancamento)}</p>
-                        </td>
-                        <td className="px-4 py-3.5">
                           <p className="font-medium text-gray-800">{row.cliente || 'Cliente não informado'}</p>
                           <p className="mt-0.5 text-xs text-gray-500">Pagamento: {row.status_pagamento || '—'}</p>
                         </td>
                         <td className="px-4 py-3.5 whitespace-nowrap text-gray-700">{formatDate(row.vencimento)}</td>
-                        <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-brand-700">{formatCurrency(row.valor || 0)}</td>
                         <td className="px-4 py-3.5 whitespace-nowrap">
                           <p className="font-medium text-gray-800">{formatDateTime(row.ultimo_envio_em)}</p>
                           {row.ultimas_tentativas ? <p className="mt-0.5 text-xs text-gray-500">{row.ultimas_tentativas} tentativa{row.ultimas_tentativas === 1 ? '' : 's'}</p> : null}
@@ -296,6 +290,7 @@ export default function Monitoramento() {
                           <p className={row.ultimo_erro ? 'font-medium text-red-700' : ''}>{detail}</p>
                           {row.ultimo_codigo_http ? <p className="mt-1 text-gray-400">HTTP {row.ultimo_codigo_http}</p> : null}
                         </td>
+                        <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-brand-700">{formatCurrency(row.valor || 0)}</td>
                       </tr>
                     )
                   })}
