@@ -148,7 +148,30 @@ export default function Monitoramento() {
       if (!row) return []
       return [{ ...row, evento_id: event.id, ultimo_envio_em: event.data_envio, ultimo_status_envio: event.status_envio, ultimo_canal_envio: event.canal_envio, ultimo_origem_envio: event.origem, ultima_observacao: event.observacao, ultimas_tentativas: event.tentativas, ultimo_codigo_http: event.codigo_http, ultimo_erro: event.erro_detalhe, situacao_monitoramento: event.status_envio === 'erro' ? 'erro' as const : row.situacao_monitoramento }]
     })
-    setRows([...history, ...result.filter((row) => !row.ultimo_envio_em)])
+    const logs: MonitoramentoCobranca[] = []
+    for (let from = 0; ; from += REMOTE_PAGE_SIZE) {
+      const { data, error: logError } = await supabase.from('sync_logs')
+        .select('id,iniciado_em,detalhes').eq('tipo', 'n8n_asaas_erro')
+        .order('iniciado_em', { ascending: false }).order('id', { ascending: false })
+        .range(from, from + REMOTE_PAGE_SIZE - 1)
+      if (logError) {
+        setError(logError.message)
+        setRows([])
+        setLoading(false)
+        return
+      }
+      const batch = data || []
+      for (const log of batch) {
+        let details = log.detalhes
+        if (typeof details === 'string') {
+          try { details = JSON.parse(details) } catch { details = {} }
+        }
+        const info = details && typeof details === 'object' ? details : {}
+        logs.push({ lancamento_id: -log.id, evento_id: -log.id, data_lancamento: null, vencimento: null, valor: null, forma_pgt: null, status_pagamento: null, cliente: null, canais: null, cobranca_automatica: null, ultimo_status_envio: 'erro', ultimo_canal_envio: null, ultimo_envio_em: log.iniciado_em, ultimas_tentativas: null, ultimo_codigo_http: info.codigo_http || null, ultimo_erro: `${info.no || 'Fluxo'}: ${info.mensagem || 'Erro sem descrição'}${info.execucao_id ? ` · Execução ${info.execucao_id}` : ''}`, entregue_em: null, situacao_monitoramento: 'erro', ultimo_origem_envio: null, ultima_observacao: null })
+      }
+      if (batch.length < REMOTE_PAGE_SIZE) break
+    }
+    setRows([...logs, ...history, ...result.filter((row) => !row.ultimo_envio_em)])
     setLoading(false)
   }, [])
 
@@ -163,7 +186,7 @@ export default function Monitoramento() {
     return rows.filter((row) => {
       const enviado = ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '')
       const aberto = row.status_pagamento !== 'pago' && row.status_pagamento !== 'cancelado'
-      const naoEnviado = aberto && !enviado
+      const naoEnviado = aberto && !enviado && row.lancamento_id > 0
       const dataReferencia = row.evento_id ? dataLocal(row.ultimo_envio_em) : (row.vencimento || '')
       if (!dataReferencia.startsWith(mes) || (dia && dataReferencia !== dia)) return false
       const matchesSituation = situacao === 'todos' ||
@@ -306,7 +329,7 @@ export default function Monitoramento() {
                     return (
                       <tr key={row.evento_id ? `evento-${row.evento_id}` : `pendente-${row.lancamento_id}`} className="align-top transition-colors hover:bg-brand-50/30">
                         <td className="px-4 py-3.5">
-                          <p className="font-medium text-gray-800">{row.cliente || 'Cliente não informado'}</p>
+                          <p className="font-medium text-gray-800">{row.cliente || 'Erro geral — cliente não identificado'}</p>
                           <p className="mt-0.5 text-xs text-gray-500">Pagamento: {row.status_pagamento || '—'}</p>
                         </td>
                         <td className="px-4 py-3.5 whitespace-nowrap text-gray-700">{formatDate(row.vencimento)}</td>
@@ -325,7 +348,7 @@ export default function Monitoramento() {
                           <p className={row.ultimo_erro ? 'font-medium text-red-700' : ''}>{detail}</p>
                           {row.ultimo_codigo_http ? <p className="mt-1 text-gray-400">HTTP {row.ultimo_codigo_http}</p> : null}
                         </td>
-                        <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-brand-700">{formatCurrency(row.valor || 0)}</td>
+                        <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-brand-700">{row.valor == null ? '—' : formatCurrency(row.valor)}</td>
                       </tr>
                     )
                   })}
