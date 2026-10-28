@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
 
 type Situacao = 'agendado' | 'enviado' | 'erro' | 'nao_automatico' | 'pendente_envio' | 'sem_envio'
+type Filtro = Situacao | 'todos' | 'pendentes_hoje' | 'nao_enviados'
 
 interface MonitoramentoCobranca {
   lancamento_id: number
@@ -73,7 +74,7 @@ export default function Monitoramento() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [situacao, setSituacao] = useState<Situacao | 'todos'>('todos')
+  const [situacao, setSituacao] = useState<Filtro>('enviado')
   const [page, setPage] = useState(1)
 
   const load = useCallback(async () => {
@@ -112,9 +113,17 @@ export default function Monitoramento() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('pt-BR')
+    const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
     return rows.filter((row) => {
-      const matchesSituation = situacao === 'todos' || row.situacao_monitoramento === situacao
+      const enviado = ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '')
+      const aberto = row.status_pagamento !== 'pago' && row.status_pagamento !== 'cancelado'
+      const naoEnviado = aberto && !enviado
+      const matchesSituation = situacao === 'todos' ||
+        (situacao === 'enviado' ? enviado :
+          situacao === 'nao_enviados' ? naoEnviado :
+          situacao === 'pendentes_hoje' ? naoEnviado && row.vencimento === hoje :
+          row.situacao_monitoramento === situacao)
       const haystack = [row.cliente, row.forma_pgt, row.ultimo_canal_envio, row.ultima_observacao]
         .filter(Boolean)
         .join(' ')
@@ -130,8 +139,8 @@ export default function Monitoramento() {
 
   const totals = useMemo(() => ({
     total: rows.length,
-    enviados: rows.filter((row) => row.situacao_monitoramento === 'enviado').length,
-    erros: rows.filter((row) => row.situacao_monitoramento === 'erro').length,
+    enviados: rows.filter((row) => ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '')).length,
+    erros: rows.filter((row) => row.ultimo_status_envio === 'erro').length,
     manuais: rows.filter((row) => row.ultimo_origem_envio === 'manual' || row.situacao_monitoramento === 'nao_automatico').length,
   }), [rows])
 
@@ -183,10 +192,12 @@ export default function Monitoramento() {
             <span className="sr-only">Filtrar por situação</span>
             <select
               value={situacao}
-              onChange={(event) => setSituacao(event.target.value as Situacao | 'todos')}
+              onChange={(event) => setSituacao(event.target.value as Filtro)}
               className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
             >
               <option value="todos">Todas as situações</option>
+              <option value="pendentes_hoje">Pendentes com vencimento hoje</option>
+              <option value="nao_enviados">Não enviados — cobranças em aberto</option>
               {Object.entries(situacaoConfig).map(([value, config]) => (
                 <option key={value} value={value}>{config.label}</option>
               ))}
@@ -229,7 +240,7 @@ export default function Monitoramento() {
                       <td colSpan={8} className="px-4 py-14 text-center text-gray-400">Nenhum lançamento encontrado com esses filtros.</td>
                     </tr>
                   ) : visibleRows.map((row) => {
-                    const situation = getSituacao(row)
+                    const situation = row.ultimo_status_envio === 'erro' ? situacaoConfig.erro : ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '') ? situacaoConfig.enviado : getSituacao(row)
                     const isManual = row.ultimo_origem_envio === 'manual'
                     const detail = row.ultimo_erro || row.ultima_observacao || (row.ultimo_status_envio ? `Status da API: ${row.ultimo_status_envio}` : 'Aguardando evento de envio')
 
