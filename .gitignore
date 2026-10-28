@@ -1,0 +1,12 @@
+node_modules
+dist
+.vercel
+.env
+.env.*
+!.env.example
+# contêm tokens fixos (Asaas / service_role): não versionar
+scratch/
+supabase/functions/
+.claude/settings.local.json
+.claude/
+.agents/

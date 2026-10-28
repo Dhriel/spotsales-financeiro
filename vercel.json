@@ -1,0 +1,14 @@
+{
+  "crons": [
+    {
+      "path": "/api/verificar-diario",
+      "schedule": "0 14 * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
