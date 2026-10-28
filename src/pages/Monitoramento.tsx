@@ -45,10 +45,10 @@ const REMOTE_PAGE_SIZE = 1000
 
 const situacaoConfig: Record<Situacao, { label: string; className: string }> = {
   agendado: { label: 'Agendado', className: 'bg-slate-100 text-slate-700' },
-  enviado: { label: 'Enviado', className: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  enviado: { label: 'Enviado', className: 'bg-blue-50 text-blue-700 border border-blue-200' },
   erro: { label: 'Erro', className: 'bg-red-50 text-red-700 border border-red-200' },
-  nao_automatico: { label: 'Manual', className: 'bg-blue-50 text-blue-700 border border-blue-200' },
-  pendente_envio: { label: 'Pendente de envio', className: 'bg-amber-50 text-amber-700 border border-amber-200' },
+  nao_automatico: { label: 'Cobrança manual', className: 'bg-amber-50 text-amber-700 border border-amber-200' },
+  pendente_envio: { label: 'Pendente de envio', className: 'bg-gray-100 text-gray-700 border border-gray-200' },
   sem_envio: { label: 'Sem envio necessário', className: 'bg-gray-100 text-gray-600' },
 }
 
@@ -65,6 +65,14 @@ function formatDateTime(value: string | null) {
   }).format(date)
 }
 
+function dataLocal(value: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
+  return ['year', 'month', 'day'].map((type) => parts.find((part) => part.type === type)?.value).join('-')
+}
+
 function getSituacao(row: MonitoramentoCobranca) {
   return situacaoConfig[row.situacao_monitoramento] || situacaoConfig.agendado
 }
@@ -75,6 +83,8 @@ export default function Monitoramento() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [situacao, setSituacao] = useState<Filtro>('enviado')
+  const [mes, setMes] = useState(() => dataLocal(new Date().toISOString()).slice(0, 7))
+  const [dia, setDia] = useState('')
   const [page, setPage] = useState(1)
 
   const load = useCallback(async () => {
@@ -119,6 +129,8 @@ export default function Monitoramento() {
       const enviado = ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '')
       const aberto = row.status_pagamento !== 'pago' && row.status_pagamento !== 'cancelado'
       const naoEnviado = aberto && !enviado
+      const dataReferencia = enviado ? dataLocal(row.ultimo_envio_em) : (row.vencimento || '')
+      if (!dataReferencia.startsWith(mes) || (dia && dataReferencia !== dia)) return false
       const matchesSituation = situacao === 'todos' ||
         (situacao === 'enviado' ? enviado :
           situacao === 'nao_enviados' ? naoEnviado :
@@ -131,18 +143,25 @@ export default function Monitoramento() {
 
       return matchesSituation && (!term || haystack.includes(term))
     })
-  }, [rows, search, situacao])
+  }, [rows, search, situacao, mes, dia])
 
   useEffect(() => {
     setPage(1)
-  }, [search, situacao])
+  }, [search, situacao, mes, dia])
 
-  const totals = useMemo(() => ({
-    total: rows.length,
-    enviados: rows.filter((row) => ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '')).length,
-    erros: rows.filter((row) => row.ultimo_status_envio === 'erro').length,
-    manuais: rows.filter((row) => row.ultimo_origem_envio === 'manual' || row.situacao_monitoramento === 'nao_automatico').length,
-  }), [rows])
+  const totals = useMemo(() => {
+    const period = rows.filter((row) => {
+      const enviado = ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '')
+      const data = enviado ? dataLocal(row.ultimo_envio_em) : (row.vencimento || '')
+      return data.startsWith(mes) && (!dia || data === dia)
+    })
+    return {
+      total: period.length,
+      enviados: period.filter((row) => ['enviado', 'enviado_api', 'entregue'].includes(row.ultimo_status_envio || '')).length,
+      erros: period.filter((row) => row.ultimo_status_envio === 'erro').length,
+      manuais: period.filter((row) => row.ultimo_origem_envio === 'manual').length,
+    }
+  }, [rows, mes, dia])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const visibleRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -177,6 +196,12 @@ export default function Monitoramento() {
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-brand-100/70 bg-white shadow-sm">
+        <div className="flex flex-wrap items-end gap-3 border-b border-brand-100/70 px-4 py-3">
+          <label className="text-xs font-semibold text-gray-600">Mês <input type="month" value={mes} onChange={(event) => { setMes(event.target.value); setDia('') }} className="ml-2 rounded-lg border border-gray-200 px-2 py-1.5" /></label>
+          <label className="text-xs font-semibold text-gray-600">Dia <input type="date" value={dia} onChange={(event) => { setDia(event.target.value); if (event.target.value) setMes(event.target.value.slice(0, 7)) }} className="ml-2 rounded-lg border border-gray-200 px-2 py-1.5" /></label>
+          {dia ? <button type="button" onClick={() => setDia('')} className="text-xs text-brand-700">Limpar dia</button> : null}
+          <p className="text-xs text-gray-500">Enviados: data do último envio. Demais situações: vencimento.</p>
+        </div>
         <div className="flex flex-col gap-3 border-b border-brand-100/70 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full lg:max-w-md">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -263,10 +288,10 @@ export default function Monitoramento() {
                         <td className="px-4 py-3.5">
                           <div className="flex flex-wrap gap-1.5">
                             {row.ultimo_canal_envio ? <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700">{row.ultimo_canal_envio}</span> : <span className="text-xs text-gray-400">Sem canal</span>}
-                            {isManual ? <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">Manual</span> : null}
+                            {isManual ? <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">Manual</span> : null}
                           </div>
                         </td>
-                        <td className="px-4 py-3.5"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${situation.className}`}>{situation.label}</span></td>
+                        <td className="px-4 py-3.5"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${isManual && row.ultimo_status_envio !== 'erro' ? 'bg-amber-50 text-amber-700 border border-amber-200' : situation.className}`}>{isManual && row.ultimo_status_envio !== 'erro' ? 'Envio manual' : situation.label}</span></td>
                         <td className="max-w-xs px-4 py-3.5 text-xs leading-relaxed text-gray-600">
                           <p className={row.ultimo_erro ? 'font-medium text-red-700' : ''}>{detail}</p>
                           {row.ultimo_codigo_http ? <p className="mt-1 text-gray-400">HTTP {row.ultimo_codigo_http}</p> : null}
