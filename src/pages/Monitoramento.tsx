@@ -42,6 +42,17 @@ interface MonitoramentoCobranca {
 
 const PAGE_SIZE = 25
 const REMOTE_PAGE_SIZE = 1000
+const filtros: { value: Filtro; label: string }[] = [
+  { value: 'enviado', label: 'Enviados' },
+  { value: 'pendentes_hoje', label: 'Pendentes hoje' },
+  { value: 'nao_enviados', label: 'Não enviados' },
+  { value: 'erro', label: 'Com erro' },
+  { value: 'nao_automatico', label: 'Cobrança manual' },
+  { value: 'pendente_envio', label: 'Pendente de envio' },
+  { value: 'agendado', label: 'Agendados' },
+  { value: 'sem_envio', label: 'Sem envio necessário' },
+  { value: 'todos', label: 'Todos' },
+]
 
 const situacaoConfig: Record<Situacao, { label: string; className: string }> = {
   agendado: { label: 'Agendado', className: 'bg-slate-100 text-slate-700' },
@@ -212,22 +223,22 @@ export default function Monitoramento() {
               className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-3 text-sm text-gray-800 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-600">
-            <Filter size={15} className="text-brand-600" />
-            <span className="sr-only">Filtrar por situação</span>
-            <select
-              value={situacao}
-              onChange={(event) => setSituacao(event.target.value as Filtro)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-            >
-              <option value="todos">Todas as situações</option>
-              <option value="pendentes_hoje">Pendentes com vencimento hoje</option>
-              <option value="nao_enviados">Não enviados — cobranças em aberto</option>
-              {Object.entries(situacaoConfig).map(([value, config]) => (
-                <option key={value} value={value}>{config.label}</option>
-              ))}
-            </select>
-          </label>
+        </div>
+        <div className="border-b border-brand-100/70 px-4 py-4">
+          <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500"><Filter size={14} className="text-brand-600" /> Filtrar por situação</p>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por situação">
+            {filtros.map((filtro) => (
+              <button
+                key={filtro.value}
+                type="button"
+                aria-pressed={situacao === filtro.value}
+                onClick={() => setSituacao(filtro.value)}
+                className={`rounded-xl border px-3.5 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 ${situacao === filtro.value ? 'border-brand-700 bg-brand-700 text-white shadow-sm' : 'border-gray-200 bg-white text-gray-600 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700'}`}
+              >
+                {filtro.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
