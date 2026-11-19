@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react'
-import { Calendar, User, CreditCard, Send, Clock, AlertOctagon, Wallet, BellOff } from 'lucide-react'
+import { Calendar, User, CreditCard, Send, Clock, AlertOctagon, Wallet, BellOff, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useKanbanData } from '../hooks/useSupabase'
 import { formatCurrency, formatDate, formatDateShort, diasParaVencimento, getKanbanColumn, kanbanColumns } from '../lib/utils'
 import ClienteDetailModal from '../components/ClienteDetailModal'
 import type { KanbanCard } from '../types'
 
 export default function Kanban() {
-  const { data, loading, refetch } = useKanbanData()
+  const [mesSelecionado, setMesSelecionado] = useState(() => {
+    const hoje = new Date()
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`
+  })
+  const { data, loading, erro, refetch } = useKanbanData(mesSelecionado)
   const [selectedClienteId, setSelectedClienteId] = useState<number | null>(null)
+  const [selecionandoMes, setSelecionandoMes] = useState(false)
+  const [anoModal, setAnoModal] = useState(() => new Date().getFullYear())
+  const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+  const [ano, mes] = mesSelecionado.split('-').map(Number)
 
   // Group cards into columns. Dentro de cada coluna, o mais atrasado (vencimento mais antigo) vem primeiro.
   const columns = kanbanColumns.map((col) => {
@@ -33,10 +41,11 @@ export default function Kanban() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-brand-950">Kanban de Cobrança</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Visão operacional de cobrança — <span className="font-medium text-brand-700">{totalCards}</span> lançamentos em aberto
+            Visão operacional de cobrança — <span className="font-medium text-brand-700">{loading ? '…' : erro ? '—' : totalCards}</span> lançamentos em aberto. As etapas consideram a data de hoje.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+        <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+          <button type="button" onClick={() => { setAnoModal(ano); setSelecionandoMes(true) }} className="flex items-center gap-2 rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm font-medium text-brand-800 hover:bg-brand-50"><Calendar size={16} /> {meses[mes - 1]} de {ano}</button>
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
             Antecipado
@@ -60,6 +69,8 @@ export default function Kanban() {
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand-700 border-t-transparent" />
         </div>
+      ) : erro ? (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{erro} <button onClick={refetch} className="font-semibold underline">Tentar novamente</button></div>
       ) : (
         <div className="flex-1 min-h-0 flex items-start gap-4 overflow-x-auto overflow-y-hidden pb-2 -mx-4 px-4 lg:-mx-6 lg:px-6 xl:-mx-8 xl:px-8">
           {columns.map((col) => (
@@ -102,6 +113,7 @@ export default function Kanban() {
         clienteId={selectedClienteId}
         onClose={() => { setSelectedClienteId(null); refetch() }}
       />
+      {selecionandoMes && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => setSelecionandoMes(false)}><div role="dialog" aria-modal="true" aria-labelledby="selecione-mes" onClick={e => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"><div className="flex items-center justify-between"><div><h2 id="selecione-mes" className="text-lg font-bold text-brand-950">Escolher mês</h2><p className="text-xs text-gray-500">Filtrar pelo mês de vencimento</p></div><button aria-label="Fechar" onClick={() => setSelecionandoMes(false)} className="rounded-lg p-2 hover:bg-gray-100"><X size={18} /></button></div><div className="my-5 flex items-center justify-between"><button aria-label="Ano anterior" onClick={() => setAnoModal(a => a - 1)} className="rounded-lg p-2 hover:bg-brand-50"><ChevronLeft size={18} /></button><strong className="text-brand-950">{anoModal}</strong><button aria-label="Próximo ano" onClick={() => setAnoModal(a => a + 1)} className="rounded-lg p-2 hover:bg-brand-50"><ChevronRight size={18} /></button></div><div className="grid grid-cols-3 gap-2">{meses.map((nome, i) => { const valor = `${anoModal}-${String(i + 1).padStart(2, '0')}`; return <button key={valor} onClick={() => { setMesSelecionado(valor); setSelecionandoMes(false) }} aria-pressed={valor === mesSelecionado} className={`rounded-xl border px-2 py-3 text-sm font-medium ${valor === mesSelecionado ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-gray-200 text-gray-700 hover:bg-brand-50'}`}>{nome}</button> })}</div></div></div>}
     </div>
   )
 }

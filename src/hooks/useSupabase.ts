@@ -386,22 +386,24 @@ export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
   return { stats, chartData, chartError, loading }
 }
 
-export function useKanbanData() {
+export function useKanbanData(mesSelecionado: string) {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [erro, setErro] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
 
   useEffect(() => {
+    let cancelado = false
     async function fetch() {
-      // Recarga após um envio não deve piscar o spinner
-      if (tick === 0) setLoading(true)
+      setLoading(true)
+      setErro(null)
 
-      const today = new Date()
-      const startStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
-      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
-      const endStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${lastDay}`
+      const [ano, mes] = mesSelecionado.split('-').map(Number)
+      const startStr = `${mesSelecionado}-01`
+      const lastDay = new Date(ano, mes, 0).getDate()
+      const endStr = `${mesSelecionado}-${lastDay}`
 
-      const { data: lancData } = await supabase
+      const { data: lancData, error: lancError } = await supabase
         .from('lancamentos_mensais')
         .select('*, cliente:clientes(*)')
         .neq('status_pagamento', 'pago')
@@ -410,6 +412,12 @@ export function useKanbanData() {
         .lte('vencimento', endStr)
         .order('vencimento', { ascending: true })
 
+      if (cancelado) return
+      if (lancError) {
+        setErro('Não foi possível carregar as cobranças deste mês.')
+        setLoading(false)
+        return
+      }
       if (!lancData) {
         setData([])
         setLoading(false)
@@ -420,12 +428,18 @@ export function useKanbanData() {
       let enviosMap: Record<number, { count: number; ultimo: string | null; ultimo_status_envio: string | null; origem: string | null; origens: string[] }> = {}
 
       if (lancIds.length > 0) {
-        const { data: enviosData } = await supabase
+        const { data: enviosData, error: enviosError } = await supabase
           .from('envios_lancamentos')
           .select('*')
           .in('lancamento_id', lancIds)
           .order('data_envio', { ascending: false })
 
+        if (cancelado) return
+        if (enviosError) {
+          setErro('Não foi possível carregar os envios deste mês.')
+          setLoading(false)
+          return
+        }
         if (enviosData) {
           for (const e of enviosData) {
             if (!enviosMap[e.lancamento_id]) {
@@ -455,12 +469,15 @@ export function useKanbanData() {
           envios_origens: enviosMap[l.id]?.origens || [],
         }))
 
-      setData(result)
-      setLoading(false)
+      if (!cancelado) {
+        setData(result)
+        setLoading(false)
+      }
     }
 
     fetch()
-  }, [tick])
+    return () => { cancelado = true }
+  }, [tick, mesSelecionado])
 
-  return { data, loading, refetch: () => setTick((t) => t + 1) }
+  return { data, loading, erro, refetch: () => setTick((t) => t + 1) }
 }
