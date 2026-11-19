@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency, formatDate } from '../lib/utils'
+import { CanalBadges, FormaBadge, OrigemBadge } from '../components/DetalhesBadges'
 
 type Situacao = 'agendado' | 'enviado' | 'erro' | 'nao_automatico' | 'pendente_envio' | 'sem_envio'
 type Filtro = Situacao | 'todos' | 'pendentes_hoje' | 'nao_enviados'
@@ -330,7 +331,7 @@ export default function Monitoramento() {
                       <tr key={row.evento_id ? `evento-${row.evento_id}` : `pendente-${row.lancamento_id}`} className="align-top transition-colors hover:bg-brand-50/30">
                         <td className="px-4 py-3.5">
                           <p className="font-medium text-gray-800">{row.cliente || 'Erro geral — cliente não identificado'}</p>
-                          <p className="mt-0.5 text-xs text-gray-500">Pagamento: {row.status_pagamento || '—'}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-1"><span className="text-xs text-gray-500">Pagamento: {row.status_pagamento || '—'}</span><FormaBadge forma={row.forma_pgt} /></div>
                         </td>
                         <td className="px-4 py-3.5 whitespace-nowrap text-gray-700">{formatDate(row.vencimento)}</td>
                         <td className="px-4 py-3.5 whitespace-nowrap">
@@ -339,8 +340,8 @@ export default function Monitoramento() {
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex flex-wrap gap-1.5">
-                            {row.ultimo_canal_envio ? <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700">{row.ultimo_canal_envio}</span> : <span className="text-xs text-gray-400">Sem canal</span>}
-                            {isManual ? <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">Manual</span> : null}
+                            <CanalBadges canal={row.ultimo_canal_envio} />
+                            <OrigemBadge origem={row.ultimo_origem_envio} />
                           </div>
                         </td>
                         <td className="px-4 py-3.5"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${isManual && row.ultimo_status_envio !== 'erro' ? 'bg-amber-50 text-amber-700 border border-amber-200' : situation.className}`}>{isManual && row.ultimo_status_envio !== 'erro' ? 'Envio manual' : situation.label}</span></td>

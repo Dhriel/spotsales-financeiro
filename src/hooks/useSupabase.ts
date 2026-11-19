@@ -373,7 +373,7 @@ export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
       })
       const semDataPagamento = historico.filter(l => l.status_pagamento === 'pago' && !l.data_pagamento).length
       const { data: atividades, error: erroAtividades } = await supabase.from('envios_lancamentos')
-        .select('id,data_envio,status_envio,origem,canal_envio,lancamento:lancamentos_mensais(descricao,cliente:clientes(descricao))')
+        .select('id,data_envio,status_envio,origem,canal_envio,lancamento:lancamentos_mensais(descricao,forma_pgt,status_pagamento,cliente:clientes(descricao))')
         .order('data_envio', { ascending: false }).limit(6)
       setChartError(erroHistorico)
       setChartData({ statusChart, envioStatusChart, monthlyData: erroHistorico ? [] : monthlyData, semDataPagamento, atividades: atividades || [], erroAtividades: !!erroAtividades, erros: enviosData.filter((e: any) => e.status_envio === 'erro').length })

@@ -3,6 +3,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, Send, ChevronLeft, ChevronRight, Alert
 import { useLancamentos, useClientes } from '../hooks/useSupabase'
 import { formatCurrency, formatDate, getDefaultFilters, getDateRange, diasParaVencimento } from '../lib/utils'
 import { StatusPagamentoBadge, StatusEnvioBadge } from '../components/StatusBadge'
+import { CanalBadges, FormaBadge } from '../components/DetalhesBadges'
 import FilterBar from '../components/FilterBar'
 import ClienteDetailModal from '../components/ClienteDetailModal'
 import { supabase } from '../lib/supabase'
@@ -305,7 +306,6 @@ export default function Lancamentos() {
                       const isVenceHojeSemEnvio = !isPago && dias === 0 && (l.envios_count || 0) === 0
                       const isNaoEnviado = (deveriaEnviarHoje(l) && !foiEnviadoHoje(l)) || isVenceHojeSemEnvio
                       const forma = (l.forma_pgt || '').toLowerCase()
-                      const formaCellBg = forma === 'boleto' ? 'bg-blue-100' : forma === 'pix' ? 'bg-emerald-50' : forma.includes('cart') ? 'bg-purple-100' : ''
                       // Cartão ou cobrança manual não passam pela cobrança automática do Asaas:
                       // nos não enviados eles ganham destaque azul (em vez de vermelho).
                       const isManualOuCartao = l.cliente?.cobranca_automatica === false || forma.includes('cart')
@@ -361,9 +361,9 @@ export default function Lancamentos() {
                         <td className="px-4 py-3"><StatusPagamentoBadge status={l.status_pagamento} /></td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-gray-600 whitespace-nowrap text-xs hidden md:table-cell">{l.cliente?.contato || '—'}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-xs hidden sm:table-cell">
-                          <span className={`inline-block px-3 py-1 rounded-full text-gray-700 font-medium ${formaCellBg}`}>{l.forma_pgt || '—'}</span>
+                          <FormaBadge forma={l.forma_pgt} />
                         </td>
-                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-gray-600 whitespace-nowrap text-xs hidden md:table-cell">{l.canais || '—'}</td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-gray-600 whitespace-nowrap text-xs hidden md:table-cell"><div className="flex gap-1"><CanalBadges canal={l.canais} /></div></td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-gray-600 whitespace-nowrap text-xs hidden lg:table-cell">{l.cliente?.whatsapp || '—'}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-gray-600 whitespace-nowrap text-xs hidden xl:table-cell">{l.cliente?.email || '—'}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-gray-600 whitespace-nowrap text-xs hidden xl:table-cell">{l.cliente?.cnpj_cpf || '—'}</td>
