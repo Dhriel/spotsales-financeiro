@@ -208,9 +208,10 @@ export function useClienteDetail(clienteId: number | null) {
   return { cliente, lancamentos, envios, loading, refetch: fetchData }
 }
 
-export function useDashboardStats(filtros: FiltrosState) {
+export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [chartData, setChartData] = useState<any>(null)
+  const [chartError, setChartError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -349,34 +350,40 @@ export function useDashboardStats(filtros: FiltrosState) {
         { name: 'Não Enviar', value: envioNao, fill: '#9ca3af' },
       ]
 
-      // Monthly revenue (last 6 months)
-      const monthlyData: { month: string; recebido: number; previsto: number; pagamentos: number }[] = []
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date()
-        d.setMonth(d.getMonth() - i)
-        const mStr = d.toLocaleString('pt-BR', { month: 'short' })
-        const mStart = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-01`
-        const mEnd = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()}`
-
-        const mLancs = lancs.filter((l: any) => l.vencimento >= mStart && l.vencimento <= mEnd)
-        const mPagos = mLancs.filter((l: any) => l.status_pagamento === 'pago')
-
-        monthlyData.push({
-          month: mStr,
-          recebido: mPagos.reduce((s: number, l: any) => s + (l.valor || 0), 0),
-          previsto: mLancs.reduce((s: number, l: any) => s + (l.valor || 0), 0),
-          pagamentos: mPagos.length,
-        })
+      // Histórico independente do filtro de vencimento dos cartões.
+      const primeiroMes = new Date(new Date().getFullYear(), new Date().getMonth() - mesesGrafico + 1, 1)
+      const inicioHistorico = `${primeiroMes.getFullYear()}-${String(primeiroMes.getMonth() + 1).padStart(2, '0')}-01`
+      const historico: any[] = []
+      let erroHistorico: string | null = null
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await supabase.from('lancamentos_mensais')
+          .select('id,vencimento,data_pagamento,status_pagamento,valor')
+          .or(`vencimento.gte.${inicioHistorico},data_pagamento.gte.${inicioHistorico}`)
+          .order('id').range(offset, offset + 999)
+        if (error) { erroHistorico = 'Não foi possível carregar o histórico financeiro.'; break }
+        historico.push(...(data || []))
+        if (!data || data.length < 1000) break
       }
-
-      setChartData({ statusChart, envioStatusChart, monthlyData })
+      const monthlyData = Array.from({ length: mesesGrafico }, (_, i) => {
+        const d = new Date(primeiroMes.getFullYear(), primeiroMes.getMonth() + i, 1)
+        const prefixo = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        const vencimentos = historico.filter(l => String(l.vencimento || '').startsWith(prefixo) && l.status_pagamento !== 'cancelado')
+        const pagamentos = historico.filter(l => l.status_pagamento === 'pago' && String(l.data_pagamento || '').startsWith(prefixo))
+        return { month: d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), previsto: vencimentos.reduce((s, l) => s + Number(l.valor || 0), 0), recebido: pagamentos.reduce((s, l) => s + Number(l.valor || 0), 0), pagamentos: pagamentos.length }
+      })
+      const semDataPagamento = historico.filter(l => l.status_pagamento === 'pago' && !l.data_pagamento).length
+      const { data: atividades, error: erroAtividades } = await supabase.from('envios_lancamentos')
+        .select('id,data_envio,status_envio,origem,canal_envio,lancamento:lancamentos_mensais(descricao,cliente:clientes(descricao))')
+        .order('data_envio', { ascending: false }).limit(6)
+      setChartError(erroHistorico)
+      setChartData({ statusChart, envioStatusChart, monthlyData: erroHistorico ? [] : monthlyData, semDataPagamento, atividades: atividades || [], erroAtividades: !!erroAtividades, erros: enviosData.filter((e: any) => e.status_envio === 'erro').length })
       setLoading(false)
     }
 
     fetch()
-  }, [filtros])
+  }, [filtros, mesesGrafico])
 
-  return { stats, chartData, loading }
+  return { stats, chartData, chartError, loading }
 }
 
 export function useKanbanData() {

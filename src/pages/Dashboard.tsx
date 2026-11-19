@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Users, FileText, CheckCircle2, Clock, AlertTriangle, TrendingUp,
   DollarSign, Send, UserCheck, UserX, X,
 } from 'lucide-react'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LabelList,
 } from 'recharts'
 import { useDashboardStats, useLancamentos } from '../hooks/useSupabase'
@@ -20,7 +21,8 @@ export default function Dashboard() {
   const [showClientes, setShowClientes] = useState(false)
   const [showLancamentos, setShowLancamentos] = useState<string | null>(null)
   const [selectedClienteId, setSelectedClienteId] = useState<number | null>(null)
-  const { stats, chartData, loading } = useDashboardStats(filtros)
+  const [mesesGrafico, setMesesGrafico] = useState(12)
+  const { stats, chartData, chartError, loading } = useDashboardStats(filtros, mesesGrafico)
   const { lancamentos } = useLancamentos(filtros)
 
   const lancamentosFiltrados = showLancamentos
@@ -102,10 +104,10 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Revenue Bar Chart */}
               <div className="card">
-                <h3 className="text-base font-semibold text-brand-950 mb-4">Receita por Período</h3>
+                <div className="flex items-center justify-between gap-3 mb-2"><h3 className="text-base font-semibold text-brand-950">Receita por Período</h3><select aria-label="Período dos gráficos financeiros" value={mesesGrafico} onChange={e => setMesesGrafico(Number(e.target.value))} className="border rounded-lg px-2 py-1 text-sm"><option value={6}>Últimos 6 meses</option><option value={12}>Últimos 12 meses</option><option value={24}>Últimos 24 meses</option></select></div><p className="text-xs text-gray-500 mb-3">Visão geral independente dos filtros acima. Previsto pelo vencimento; recebido pela data do pagamento.</p>{chartError && <p role="alert" className="text-red-600 text-sm">{chartError}</p>}
                 <div className="h-56 sm:h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData.monthlyData} barGap={4} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
+                    <LineChart data={chartData.monthlyData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E9D5FF" vertical={false} />
                       <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
@@ -113,13 +115,10 @@ export default function Dashboard() {
                         formatter={(value: number) => [formatCurrency(value)]}
                         contentStyle={{ borderRadius: '12px', border: '1px solid #E9D5FF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                       />
-                      <Bar dataKey="previsto" name="Previsto" fill="#DDD6FE" radius={[6, 6, 0, 0]}>
-                        <LabelList dataKey="previsto" position="top" formatter={(v: number) => v > 0 ? `R$${(v/1000).toFixed(0)}k` : ''} style={{ fontSize: 10, fill: '#9ca3af' }} />
-                      </Bar>
-                      <Bar dataKey="recebido" name="Recebido" fill="#7C3AED" radius={[6, 6, 0, 0]}>
-                        <LabelList dataKey="recebido" position="top" formatter={(v: number) => v > 0 ? `R$${(v/1000).toFixed(0)}k` : ''} style={{ fontSize: 10, fill: '#7C3AED' }} />
-                      </Bar>
-                    </BarChart>
+                      <Legend />
+                      <Line type="linear" dataKey="previsto" name="Previsto" stroke="#A78BFA" strokeWidth={2} dot={false} />
+                      <Line type="linear" dataKey="recebido" name="Recebido" stroke="#6D28D9" strokeWidth={2} dot={false} />
+                    </LineChart>
                   </ResponsiveContainer>
                 </div>
               </div>
@@ -155,7 +154,7 @@ export default function Dashboard() {
 
               {/* Payments per month */}
               <div className="card">
-                <h3 className="text-base font-semibold text-brand-950 mb-4">Pagamentos por Período</h3>
+                <h3 className="text-base font-semibold text-brand-950 mb-2">Pagamentos por Período</h3><p className="text-xs text-gray-500 mb-3">Quantidade por data efetiva de pagamento, no período selecionado acima.</p>{chartData.semDataPagamento > 0 && <p className="text-xs text-amber-700 mb-2">{chartData.semDataPagamento} lançamento(s) pago(s) sem data de pagamento não entram nos valores recebidos.</p>}
                 <div className="h-56 sm:h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData.monthlyData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
@@ -171,33 +170,15 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Envio Status Pie */}
-              <div className="card">
-                <h3 className="text-base font-semibold text-brand-950 mb-4">Status de Envio</h3>
-                <div className="h-64 sm:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={chartData.envioStatusChart.filter((d: any) => d.value > 0)}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                        paddingAngle={3}
-                        dataKey="value"
-                        nameKey="name"
-                        strokeWidth={0}
-                        label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                        labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
-                      >
-                        {chartData.envioStatusChart.map((entry: any, index: number) => (
-                          <Cell key={index} fill={entry.fill} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #E9D5FF', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+              <div className="card space-y-4">
+                <div><h3 className="text-base font-semibold text-brand-950">Precisam de atenção</h3><p className="text-xs text-gray-500 mt-1">Erros associados aos lançamentos do filtro acima.</p></div>
+                <Link to="/monitoramento" className="flex justify-between items-center rounded-lg bg-red-50 text-red-800 px-3 py-3 text-sm"><span>Envios registrados com erro</span><strong>{chartData.erros}</strong></Link>
+                <p className="text-xs text-gray-500">Consulte o monitoramento para revisar pendências e resultados incertos. Os registros dependem do fluxo de envio.</p>
+                <Link to="/monitoramento" className="text-sm text-brand-700 font-medium">Abrir monitoramento →</Link>
+              </div>
+              <div className="card lg:col-span-2">
+                <div className="flex justify-between items-center mb-3"><div><h3 className="text-base font-semibold text-brand-950">Atividades recentes</h3><p className="text-xs text-gray-500">Últimos registros de envio, independentemente dos filtros.</p></div><Link className="text-sm text-brand-700" to="/monitoramento">Ver todos →</Link></div>
+                {chartData.erroAtividades ? <p className="text-sm text-red-700">Não foi possível carregar as atividades.</p> : chartData.atividades.length === 0 ? <p className="text-sm text-gray-500">Nenhuma atividade registrada.</p> : <ul className="divide-y divide-gray-100">{chartData.atividades.map((e: any) => <li key={e.id} className="py-3 flex justify-between gap-4 text-sm"><span><strong>{e.lancamento?.cliente?.descricao || e.lancamento?.descricao || 'Cliente não identificado'}</strong><span className="text-gray-500"> · {e.origem === 'manual' ? 'Manual' : e.origem === 'automatico' ? 'Automático' : 'Origem não informada'} · {e.canal_envio || 'Canal não informado'} · {e.status_envio || 'Situação não informada'}</span></span><time className="text-xs text-gray-500 whitespace-nowrap">{e.data_envio ? new Date(e.data_envio).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}) : '—'}</time></li>)}</ul>}
               </div>
             </div>
           )}
