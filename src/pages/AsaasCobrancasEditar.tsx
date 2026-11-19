@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  FileText, CheckCircle2, XCircle, Loader2, DollarSign, Wallet, ChevronRight, X, Trash2, Pencil, BadgeCheck, Plus
+  FileText, CheckCircle2, XCircle, Loader2, DollarSign, Wallet, ChevronRight, X, Trash2, Pencil, BadgeCheck, Plus, Send
 } from 'lucide-react'
 import DatePickerField from '../components/DatePickerField'
 import { supabase } from '../lib/supabase'
 import { useClientes } from '../hooks/useSupabase'
+import EnviarCobrancaModal from '../components/EnviarCobrancaModal'
 
 interface Pagamento {
   id: string
@@ -29,6 +30,8 @@ export default function AsaasCobrancasEditar() {
   const [cobranças, setCobranças] = useState<Pagamento[]>([])
   const [assinaturas, setAssinaturas] = useState<Pagamento[]>([])
   const [selectedPagamento, setSelectedPagamento] = useState<Pagamento | null>(null)
+  const [envioSelecionado, setEnvioSelecionado] = useState<{ cliente: any; lancamento: any } | null>(null)
+  const [preparandoEnvio, setPreparandoEnvio] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Pagamento | null>(null)
   const [deletingLoading, setDeletingLoading] = useState(false)
   const [confirmBaixa, setConfirmBaixa] = useState<Pagamento | null>(null)
@@ -102,6 +105,37 @@ export default function AsaasCobrancasEditar() {
       forma_pgt: pagamento.billingType,
       observacao: pagamento.description || '',
     })
+  }
+
+  const handlePrepararEnvio = async (pagamento: Pagamento) => {
+    const cliente = selectedCliente
+    if (!cliente || pagamento.tipo === 'assinatura') return
+    setPreparandoEnvio(true)
+    setMessage(null)
+    try {
+      const response = await fetch('https://eohugjtnhmcnedqzzpyy.supabase.co/functions/v1/get-asaas-charges', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asaas_customer_id: cliente.asaas_customer_id }),
+      })
+      if (!response.ok) throw new Error('Não foi possível conferir a cobrança no Asaas.')
+      const dados = await response.json()
+      if (!dados.success || !Array.isArray(dados.charges)) throw new Error('Não foi possível conferir a cobrança no Asaas.')
+      const atual = dados.charges.find((c: Pagamento) => c.id === pagamento.id)
+      if (!atual || atual.customer !== cliente.asaas_customer_id || !['PENDING', 'OVERDUE'].includes(atual.status)) {
+        throw new Error('A cobrança não está mais pendente para este cliente. Atualize a lista antes de enviar.')
+      }
+      const { data, error } = await supabase.from('lancamentos_mensais').select('*')
+        .eq('cliente_id', cliente.id).eq('asaas_id', atual.id).limit(2)
+      if (error) throw new Error('Não foi possível conferir o lançamento no financeiro.')
+      if (!data || data.length !== 1) throw new Error('Não foi encontrado um único lançamento correspondente. Confira a sincronização antes de enviar.')
+      const lancamento = data[0]
+      if (!['pendente', 'atrasado'].includes(lancamento.status_pagamento) || Number(lancamento.valor) !== Number(atual.value) || lancamento.vencimento !== atual.dueDate) {
+        throw new Error('Os dados do lançamento diferem do Asaas. Atualize a sincronização antes de enviar.')
+      }
+      setEnvioSelecionado({ cliente, lancamento })
+    } catch (erro) {
+      setMessage({ type: 'error', text: erro instanceof Error ? erro.message : 'Não foi possível preparar o envio.' })
+    } finally { setPreparandoEnvio(false) }
   }
 
   const handleDeleteAssinatura = (pagamento: Pagamento) => {
@@ -473,6 +507,8 @@ export default function AsaasCobrancasEditar() {
             onDelete={handleDeleteAssinatura}
             onBaixa={(p: Pagamento) => setConfirmBaixa(p)}
             onCriarCobranca={() => navigate(`/asaas-cobranca?cliente_id=${selectedCliente.id}`)}
+            onEnviar={handlePrepararEnvio}
+            preparandoEnvio={preparandoEnvio}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center">
@@ -484,13 +520,14 @@ export default function AsaasCobrancasEditar() {
           </div>
         )}
       </div>
+      {envioSelecionado && <EnviarCobrancaModal cliente={envioSelecionado.cliente} lancamento={envioSelecionado.lancamento} onClose={() => setEnvioSelecionado(null)} onEnviado={() => {}} />}
     </div>
   )
 }
 
 function EditPanel({
   cliente, cobranças, assinaturas, selectedPagamento, editForm, loading, message,
-  onSelectPagamento, onEditFormChange, onSave, onBack, onDelete, onBaixa, onCriarCobranca,
+  onSelectPagamento, onEditFormChange, onSave, onBack, onDelete, onBaixa, onCriarCobranca, onEnviar, preparandoEnvio,
 }: any) {
   
   if (selectedPagamento) {
@@ -513,6 +550,7 @@ function EditPanel({
                 <XCircle size={14} /> {message.text}
               </div>
             )}
+            {selectedPagamento.tipo === 'cobranca' && ['PENDING', 'OVERDUE'].includes(selectedPagamento.status) && <button onClick={() => onEnviar(selectedPagamento)} disabled={preparandoEnvio || loading} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">{preparandoEnvio ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar cobrança</button>}
             <button onClick={onBack} className="px-4 py-2 rounded-xl text-xs font-bold bg-gray-100 dark:bg-surface-variant text-gray-700 dark:text-on-surface-variant hover:bg-gray-200 dark:hover:bg-surface-container-highest transition-colors shadow-sm">
               Voltar
             </button>
