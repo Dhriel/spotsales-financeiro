@@ -66,8 +66,8 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-brand-950">Dashboard financeiro</h1>
-        <p className="text-xs sm:text-sm text-gray-500 mt-1">Recebimentos, cobranças e atividades em um só lugar</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-brand-950">Dashboard</h1>
+        <p className="text-xs sm:text-sm text-gray-500 mt-1">Visão geral financeira da SpotSales</p>
       </div>
 
       {/* Filters */}
@@ -80,7 +80,7 @@ export default function Dashboard() {
       ) : (
         <>
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {cards.slice(0, 4).map((card: any) => (
               <div
                 key={card.label}
@@ -88,15 +88,15 @@ export default function Dashboard() {
                 role={card.clickable ? 'button' : undefined}
                 tabIndex={card.clickable ? 0 : undefined}
                 onKeyDown={card.clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.action() } } : undefined}
-                className={`card flex items-center gap-3 hover:shadow-md transition-shadow group ${card.clickable ? 'cursor-pointer ring-1 ring-brand-200 hover:ring-brand-400' : ''}`}
+                className={`card hover:shadow-md transition-shadow group ${card.clickable ? 'cursor-pointer ring-1 ring-brand-200 hover:ring-brand-400' : ''}`}
               >
                 <div className="flex items-start justify-between">
                   <div className={`p-2 rounded-lg ${card.bg} group-hover:scale-110 transition-transform`}>
                     <card.icon size={18} className={card.color} />
                   </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-500">{card.label}</p>
+                <div className="mt-3">
+                  <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">{card.label}</p>
                   <p className={`font-bold text-brand-950 mt-0.5 ${card.big ? 'text-base sm:text-xl' : 'text-lg sm:text-2xl'}`}>
                     {card.value}
                   </p>
@@ -118,7 +118,7 @@ export default function Dashboard() {
           {chartData && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Revenue Bar Chart */}
-              <div className="card order-3 lg:col-span-2">
+              <div className="card">
                 <div className="flex items-center justify-between gap-3 mb-2"><h3 className="text-base font-semibold text-brand-950">Receita por Período</h3><select aria-label="Período dos gráficos financeiros" value={mesesGrafico} onChange={e => setMesesGrafico(Number(e.target.value))} className="border rounded-lg px-2 py-1 text-sm"><option value={6}>Últimos 6 meses</option><option value={12}>Últimos 12 meses</option><option value={24}>Últimos 24 meses</option></select></div><p className="text-xs text-gray-500 mb-3">Visão geral independente dos filtros acima. Previsto pelo vencimento; recebido pela data do pagamento.</p>{chartError && <p role="alert" className="text-red-600 text-sm">{chartError}</p>}
                 <div className="h-56 sm:h-72">
                   <ResponsiveContainer width="100%" height="100%">
@@ -139,7 +139,7 @@ export default function Dashboard() {
               </div>
 
               {/* Payment Status Pie */}
-              <div className="card order-4">
+              <div className="card">
                 <h3 className="text-base font-semibold text-brand-950 mb-4">Status de Pagamento</h3>
                 <div className="h-64 sm:h-80">
                   <ResponsiveContainer width="100%" height="100%">
@@ -168,7 +168,7 @@ export default function Dashboard() {
               </div>
 
               {/* Payments per month */}
-              <div className="card order-5">
+              <div className="card">
                 <h3 className="text-base font-semibold text-brand-950 mb-2">Pagamentos por Período</h3><p className="text-xs text-gray-500 mb-3">Quantidade por data efetiva de pagamento, no período selecionado acima.</p>
                 {chartError ? <p role="alert" className="text-sm text-red-700 mb-3">{chartError}</p> : <div className="inline-flex items-center gap-3 rounded-xl bg-emerald-50 px-4 py-2 mb-3"><span aria-hidden="true">💰</span><div><p className="text-xs text-emerald-700">Total recebido no período</p><p className="text-lg font-bold text-emerald-800">{formatCurrency(chartData.monthlyData.reduce((total: number, mes: any) => total + mes.recebido, 0))}</p></div></div>}
                 {chartData.semDataPagamento > 0 && <p className="text-xs text-amber-700 mb-2">{chartData.semDataPagamento} lançamento(s) pago(s) sem data de pagamento não entram nos valores recebidos.</p>}
@@ -187,13 +187,13 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="card space-y-4 order-1">
+              <div className="card space-y-4">
                 <div><h3 className="text-base font-semibold text-brand-950">Precisam de atenção</h3><p className="text-xs text-gray-500 mt-1">Erros associados aos lançamentos do filtro acima.</p></div>
                 <Link to="/monitoramento" className="flex justify-between items-center rounded-lg bg-red-50 text-red-800 px-3 py-3 text-sm"><span>Envios registrados com erro</span><strong>{chartData.erros}</strong></Link>
                 <p className="text-xs text-gray-500">Consulte o monitoramento para revisar pendências e resultados incertos. Os registros dependem do fluxo de envio.</p>
                 <Link to="/monitoramento" className="text-sm text-brand-700 font-medium">Abrir monitoramento →</Link>
               </div>
-              <div className="card order-2">
+              <div className="card lg:col-span-2">
                 <div className="flex justify-between items-center mb-3"><div><h3 className="text-base font-semibold text-brand-950">Atividades recentes</h3><p className="text-xs text-gray-500">Últimos registros de envio, independentemente dos filtros.</p></div><Link className="text-sm text-brand-700" to="/monitoramento">Ver todos →</Link></div>
                 {chartData.erroAtividades ? <p className="text-sm text-red-700">Não foi possível carregar as atividades.</p> : chartData.atividades.length === 0 ? <p className="text-sm text-gray-500">Nenhuma atividade registrada.</p> : <ul className="space-y-2">{chartData.atividades.map((e: any) => <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50/70 px-4 py-3 text-sm"><div className="flex min-w-0 items-start gap-3"><span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-lg">👤</span><div className="min-w-0"><p className="font-semibold text-brand-950 truncate">{e.lancamento?.cliente?.descricao || e.lancamento?.descricao || 'Cliente não identificado'}</p><div className="mt-2 flex flex-wrap gap-1.5"><CanalBadges canal={e.canal_envio} /><FormaBadge forma={e.lancamento?.forma_pgt} /><OrigemBadge origem={e.origem} /><SituacaoEnvioBadge status={e.status_envio} />{e.lancamento?.status_pagamento && <StatusPagamentoBadge status={e.lancamento.status_pagamento} />}</div></div></div><time className="text-xs text-gray-500 whitespace-nowrap">{e.data_envio ? new Date(e.data_envio).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'}) : '—'}</time></li>)}</ul>}
               </div>
