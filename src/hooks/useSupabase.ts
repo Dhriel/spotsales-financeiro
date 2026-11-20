@@ -45,6 +45,9 @@ export function useLancamentos(filtros: FiltrosState) {
       startDate = `${filtros.ano}-${m}-01`
       const lastDay = new Date(filtros.ano, filtros.mes, 0).getDate()
       endDate = `${filtros.ano}-${m}-${lastDay}`
+    } else if (filtros.ano) {
+      startDate = `${filtros.ano}-01-01`
+      endDate = `${filtros.ano}-12-31`
     } else {
       const range = getDateRange('this_month')
       startDate = range.start
@@ -83,6 +86,7 @@ export function useLancamentos(filtros: FiltrosState) {
         .select('*')
         .in('lancamento_id', lancIds)
         .order('data_envio', { ascending: false })
+        .order('id', { ascending: false })
 
       if (enviosData) {
         for (const e of enviosData) {
@@ -215,6 +219,7 @@ export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelado = false
     async function fetch() {
       setLoading(true)
 
@@ -229,6 +234,9 @@ export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
         startDate = `${filtros.ano}-${m}-01`
         const lastDay = new Date(filtros.ano, filtros.mes, 0).getDate()
         endDate = `${filtros.ano}-${m}-${lastDay}`
+      } else if (filtros.ano) {
+        startDate = `${filtros.ano}-01-01`
+        endDate = `${filtros.ano}-12-31`
       } else {
         const range = getDateRange('this_month')
         startDate = range.start
@@ -237,6 +245,11 @@ export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
 
       let { data: clientesData } = await supabase.from('clientes').select('*').neq('ativo', false)
       let clientes = clientesData || []
+
+      if (filtros.cliente.trim()) {
+        const termo = filtros.cliente.trim().toLocaleLowerCase('pt-BR')
+        clientes = clientes.filter((c: any) => (c.descricao || '').toLocaleLowerCase('pt-BR').includes(termo))
+      }
 
       if (filtros.envia_nf) {
         const envNfValue = filtros.envia_nf === 'true'
@@ -289,15 +302,15 @@ export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
           .from('envios_lancamentos')
           .select('*')
           .in('lancamento_id', lancIdsInitial)
+          .order('data_envio', { ascending: false })
+          .order('id', { ascending: false })
         enviosData = data || []
       }
 
       if (filtros.status_envio) {
-        const lancIdsComEnvioStatus = new Set(
-          enviosData
-            .filter((e: any) => e.status_envio === filtros.status_envio)
-            .map((e: any) => e.lancamento_id)
-        )
+        const ultimoPorLancamento = new Map<number, any>()
+        enviosData.forEach((e: any) => { if (!ultimoPorLancamento.has(e.lancamento_id)) ultimoPorLancamento.set(e.lancamento_id, e) })
+        const lancIdsComEnvioStatus = new Set(Array.from(ultimoPorLancamento.values()).filter((e: any) => e.status_envio === filtros.status_envio).map((e: any) => e.lancamento_id))
         lancs = lancs.filter((l: any) => lancIdsComEnvioStatus.has(l.id))
         const lancIdsFiltrados = new Set(lancs.map((l: any) => l.id))
         enviosData = enviosData.filter((e: any) => lancIdsFiltrados.has(e.lancamento_id))
@@ -308,16 +321,19 @@ export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
       const pendentes = lancs.filter((l: any) => l.status_pagamento === 'pendente')
       const atrasados = lancs.filter((l: any) => l.status_pagamento === 'atrasado')
 
-      const valorPrevisto = lancs.reduce((s: number, l: any) => s + (l.valor || 0), 0)
-      const valorRecebido = pagos.reduce((s: number, l: any) => s + (l.valor || 0), 0)
+      const valorPrevisto = lancs.filter((l: any) => l.status_pagamento !== 'cancelado').reduce((s: number, l: any) => s + Number(l.valor || 0), 0)
+      const valorRecebido = pagos.reduce((s: number, l: any) => s + Number(l.valor || 0), 0)
 
+      const enviosRegistrados = enviosData.filter((e: any) => ['enviado', 'enviado_api', 'entregue'].includes(e.status_envio))
+      const clientesComLancamento = new Set(lancs.map((l: any) => l.cliente_id))
       const clientesComEnvio = new Set(
-        enviosData.map((e: any) => {
+        enviosRegistrados.map((e: any) => {
           const lanc = lancs.find((l: any) => l.id === e.lancamento_id)
           return lanc?.cliente_id
         }).filter(Boolean)
       )
 
+      if (cancelado) return
       setStats({
         total_clientes: totalClientes,
         total_lancamentos: totalLancamentos,
@@ -326,9 +342,9 @@ export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
         total_atrasado: atrasados.length,
         valor_previsto: valorPrevisto,
         valor_recebido: valorRecebido,
-        total_envios: enviosData.length,
+        total_envios: enviosRegistrados.length,
         clientes_com_envio: clientesComEnvio.size,
-        clientes_sem_envio: totalClientes - clientesComEnvio.size,
+        clientes_sem_envio: clientesComLancamento.size - clientesComEnvio.size,
       })
 
       // Chart data - status pagamento
@@ -375,12 +391,14 @@ export function useDashboardStats(filtros: FiltrosState, mesesGrafico = 12) {
       const { data: atividades, error: erroAtividades } = await supabase.from('envios_lancamentos')
         .select('id,data_envio,status_envio,origem,canal_envio,lancamento:lancamentos_mensais(descricao,forma_pgt,status_pagamento,cliente:clientes(descricao))')
         .order('data_envio', { ascending: false }).limit(6)
+      if (cancelado) return
       setChartError(erroHistorico)
       setChartData({ statusChart, envioStatusChart, monthlyData: erroHistorico ? [] : monthlyData, semDataPagamento, atividades: atividades || [], erroAtividades: !!erroAtividades, erros: enviosData.filter((e: any) => e.status_envio === 'erro').length })
       setLoading(false)
     }
 
     fetch()
+    return () => { cancelado = true }
   }, [filtros, mesesGrafico])
 
   return { stats, chartData, chartError, loading }

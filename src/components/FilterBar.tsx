@@ -38,7 +38,11 @@ export default function FilterBar({ filtros, onChange, onPreset }: FilterBarProp
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
 
   const update = (key: keyof FiltrosState, value: any) => {
-    onChange({ ...filtros, [key]: value })
+    if (key === 'mes' || key === 'ano') {
+      onChange({ ...filtros, ano: filtros.ano || currentYear, [key]: value, dataInicio: null, dataFim: null })
+    } else {
+      onChange({ ...filtros, [key]: value })
+    }
   }
 
   const hasActiveFilters =
@@ -98,7 +102,7 @@ export default function FilterBar({ filtros, onChange, onPreset }: FilterBarProp
 
           <div className="relative">
             <select
-              value={filtros.ano || ''}
+              value={filtros.ano || currentYear}
               onChange={(e) => update('ano', e.target.value ? Number(e.target.value) : null)}
               className="pl-3 pr-8 py-2.5 bg-white border border-brand-200 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 cursor-pointer"
             >

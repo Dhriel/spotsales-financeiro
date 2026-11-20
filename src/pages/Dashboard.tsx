@@ -53,11 +53,11 @@ export default function Dashboard() {
     { label: 'Pagos', value: stats.total_pago, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', clickable: true, action: () => setShowLancamentos('pago') },
     { label: 'Pendentes', value: stats.total_pendente, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', clickable: true, action: () => setShowLancamentos('pendente') },
     { label: 'Atrasados', value: stats.total_atrasado, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', clickable: true, action: () => setShowLancamentos('atrasado') },
-    { label: 'Valor Previsto', value: formatCurrency(stats.valor_previsto), icon: TrendingUp, color: 'text-brand-700', bg: 'bg-brand-50', big: true },
-    { label: 'Valor Recebido', value: formatCurrency(stats.valor_recebido), icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50', big: true },
-    { label: 'Total Envios', value: stats.total_envios, icon: Send, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Com Envio', value: stats.clientes_com_envio, icon: UserCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Sem Envio', value: stats.clientes_sem_envio, icon: UserX, color: 'text-gray-500', bg: 'bg-gray-50' },
+    { label: 'Valor previsto (por vencimento)', value: formatCurrency(stats.valor_previsto), icon: TrendingUp, color: 'text-brand-700', bg: 'bg-brand-50', big: true },
+    { label: 'Valor pago (por vencimento)', value: formatCurrency(stats.valor_recebido), icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50', big: true },
+    { label: 'Envios registrados', value: stats.total_envios, icon: Send, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Clientes com registro de envio', value: stats.clientes_com_envio, icon: UserCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Clientes com cobrança sem registro de envio', value: stats.clientes_sem_envio, icon: UserX, color: 'text-gray-500', bg: 'bg-gray-50' },
   ] : []
 
   return (
